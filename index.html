@@ -678,6 +678,9 @@
 (() => {
   const STORAGE_KEY = "care_board_v1"; // keep your existing saved board
   const WX_KEY = "care_board_city_v1";
+    // ✅ Supabase (use ONLY the publishable/anon key — never the secret key)
+  const SUPABASE_URL = "https://wzgtbcwlkhudogqntwc.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_dsmqLAVCPrQNT-odvoCW5g_oNa5XBSx";
 
   const todayISO = () => new Date().toISOString().slice(0,10);
   const isSameDay = (isoDate, targetIso) => isoDate && isoDate === targetIso;
