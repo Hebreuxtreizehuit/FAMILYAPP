@@ -1,0 +1,1785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Care Board (Home) • v2</title>
+
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#101723;
+      --panel2:#0e1520;
+      --text:#e7eef7;
+      --muted:#9fb0c2;
+      --line:#233246;
+      --accent:#4aa3ff;
+      --danger:#ff5b6e;
+      --ok:#35d07f;
+      --warn:#ffcc66;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:16px;
+      --radius2:12px;
+      --pad:12px;
+      --cardpad:12px;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
+      /* progress-driven background (JS updates these) */
+      --blueA:.16;
+      --greenA:.12;
+      --liftA:.02;
+
+      /* overlay tint (JS updates this too) */
+      --tintA:.16;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family:var(--font);
+      position: relative;
+      background:
+        radial-gradient(1200px 600px at 20% -10%, rgba(74,163,255,var(--blueA)), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(53,208,127,var(--greenA)), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,var(--liftA)), rgba(0,0,0,0)),
+        var(--bg);
+      color:var(--text);
+      min-height:100vh;
+      overflow-x:hidden;
+    }
+
+    /* soft transparent wash */
+    body::before{
+      content:"";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(900px 520px at 18% 8%, rgba(74,163,255,var(--tintA)), transparent 60%),
+        radial-gradient(900px 520px at 92% 12%, rgba(53,208,127,var(--tintA)), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,calc(var(--tintA) * .40)), rgba(0,0,0,0));
+      mix-blend-mode: screen;
+    }
+
+    /* keep app above overlay */
+    .topbar, .wrap, .toast { position: relative; z-index: 1; }
+
+    /* Top bar */
+    .topbar{
+      position:sticky; top:0; z-index:20;
+      padding: 14px 14px 10px;
+      background: linear-gradient(to bottom, rgba(11,15,20,.92), rgba(11,15,20,.70));
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(35,50,70,.6);
+    }
+    .row{
+      display:flex; gap:10px; flex-wrap:wrap;
+      align-items:center; justify-content:space-between;
+      max-width: 1400px; margin:0 auto;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      min-width: 240px;
+    }
+    .logo{
+      width:38px; height:38px; border-radius:12px;
+      background: linear-gradient(135deg, rgba(74,163,255,.9), rgba(53,208,127,.7));
+      box-shadow: var(--shadow);
+    }
+    .titlewrap{ display:flex; flex-direction:column; line-height:1.1; }
+    .titlewrap .h1{ font-weight:800; font-size:16px; letter-spacing:.2px; }
+    .titlewrap .sub{ color:var(--muted); font-size:12px; }
+
+    .controls{
+      display:flex; gap:8px; flex-wrap:wrap;
+      align-items:center; justify-content:flex-end;
+    }
+    .input, .select{
+      background: rgba(16,23,35,.75);
+      border:1px solid rgba(35,50,70,.9);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 12px;
+      outline:none;
+      min-height:40px;
+    }
+    .input{ width:min(360px, 80vw); }
+    .select{ padding-right: 34px; }
+    .btn{
+      border:1px solid rgba(35,50,70,.9);
+      background: rgba(16,23,35,.75);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 12px;
+      cursor:pointer;
+      min-height:40px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .btn:hover{ border-color: rgba(74,163,255,.6); }
+    .btn.primary{
+      background: rgba(74,163,255,.18);
+      border-color: rgba(74,163,255,.55);
+    }
+    .btn.danger{
+      background: rgba(255,91,110,.12);
+      border-color: rgba(255,91,110,.50);
+    }
+    .btn.ok{
+      background: rgba(53,208,127,.12);
+      border-color: rgba(53,208,127,.50);
+    }
+
+    .pill{
+      font-size:12px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(35,50,70,.9);
+      color:var(--muted);
+      background: rgba(16,23,35,.5);
+      display:inline-flex; align-items:center; gap:6px;
+      cursor: default;
+      user-select:none;
+    }
+    .pill.clickable{ cursor:pointer; }
+    .savedDot{
+      width:8px; height:8px; border-radius:50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 4px rgba(53,208,127,.15);
+    }
+    .unsavedDot{
+      width:8px; height:8px; border-radius:50%;
+      background: var(--warn);
+      box-shadow: 0 0 0 4px rgba(255,204,102,.15);
+    }
+    .miniDot{
+      width:8px; height:8px; border-radius:50%;
+      background: rgba(74,163,255,.9);
+      box-shadow: 0 0 0 4px rgba(74,163,255,.14);
+    }
+
+    /* Board */
+    .wrap{
+      max-width: 1400px;
+      margin: 10px auto 28px;
+      padding: 0 14px;
+    }
+    .board{
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      overflow-x:auto;
+      padding: 12px 2px 18px;
+      scroll-snap-type: x mandatory;
+    }
+    .col{
+      width: 300px;
+      flex: 0 0 auto;
+      background: rgba(16,23,35,.70);
+      border: 1px solid rgba(35,50,70,.85);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      scroll-snap-align: start;
+    }
+    .colHeader{
+      padding: 12px 12px 8px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+      border-bottom:1px solid rgba(35,50,70,.6);
+    }
+    .colTitle{
+      font-weight:800;
+      font-size:14px;
+      letter-spacing:.2px;
+      display:flex; align-items:center; gap:8px;
+    }
+    .count{
+      font-size:12px;
+      color:var(--muted);
+      border:1px solid rgba(35,50,70,.7);
+      padding: 2px 8px;
+      border-radius:999px;
+      background: rgba(14,21,32,.55);
+    }
+    .colBody{
+      padding: 10px;
+      min-height: 140px;
+    }
+    .dropHint{
+      border:1px dashed rgba(74,163,255,.4);
+      background: rgba(74,163,255,.07);
+      border-radius: 14px;
+    }
+
+    /* Cards */
+    .card{
+      background: rgba(14,21,32,.85);
+      border:1px solid rgba(35,50,70,.85);
+      border-radius: var(--radius2);
+      padding: var(--cardpad);
+      margin-bottom:10px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .card:hover{ border-color: rgba(74,163,255,.45); }
+    .card.dragging{
+      opacity:.6;
+      transform: rotate(1deg);
+    }
+    .cardTop{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+      margin-bottom: 8px;
+    }
+    .cardTitle{
+      font-weight:800;
+      font-size:14px;
+      line-height:1.25;
+    }
+    .mini{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .badges{
+      display:flex; flex-wrap:wrap; gap:6px;
+      margin-top: 8px;
+    }
+    .badge{
+      font-size:11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border:1px solid rgba(35,50,70,.75);
+      color: var(--muted);
+      background: rgba(16,23,35,.55);
+    }
+    .badge.today{
+      color:#d7ecff;
+      border-color: rgba(74,163,255,.55);
+      background: rgba(74,163,255,.14);
+    }
+    .badge.overdue{
+      color:#ffe3e8;
+      border-color: rgba(255,91,110,.55);
+      background: rgba(255,91,110,.14);
+    }
+    .badge.done{
+      color:#dff7ea;
+      border-color: rgba(53,208,127,.55);
+      background: rgba(53,208,127,.14);
+    }
+    .badge.remind{
+      color:#fff3d6;
+      border-color: rgba(255,204,102,.65);
+      background: rgba(255,204,102,.12);
+    }
+    .checkline{
+      margin-top: 8px;
+      display:flex; align-items:center; justify-content:space-between;
+      color: var(--muted);
+      font-size:12px;
+    }
+    .bar{
+      height:6px; background: rgba(35,50,70,.75);
+      border-radius: 999px; overflow:hidden;
+      margin-top: 6px;
+    }
+    .bar > div{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, rgba(74,163,255,.9), rgba(53,208,127,.85));
+    }
+
+    /* Modal */
+    .overlay{
+      position:fixed; inset:0; z-index:50;
+      background: rgba(0,0,0,.55);
+      display:none;
+      align-items:center; justify-content:center;
+      padding: 18px;
+    }
+    .overlay.show{ display:flex; }
+    .modal{
+      width: min(760px, 96vw);
+      background: rgba(16,23,35,.96);
+      border:1px solid rgba(35,50,70,.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .modalHead{
+      padding: 12px 14px;
+      border-bottom:1px solid rgba(35,50,70,.7);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .modalHead .mh{ font-weight:900; }
+    .modalBody{
+      padding: 14px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .field{ display:flex; flex-direction:column; gap:6px; }
+    label{ font-size:12px; color:var(--muted); }
+    .textarea{
+      resize: vertical;
+      min-height: 90px;
+      max-height: 260px;
+    }
+    .full{ grid-column: 1 / -1; }
+
+    .checklist{
+      border:1px solid rgba(35,50,70,.85);
+      border-radius: 14px;
+      padding: 10px;
+      background: rgba(14,21,32,.6);
+    }
+    .checkItem{
+      display:flex; align-items:center; gap:10px;
+      padding: 8px 8px;
+      border-radius: 12px;
+    }
+    .checkItem:hover{ background: rgba(255,255,255,.03); }
+    .checkItem input[type="text"]{
+      flex:1;
+      background: transparent;
+      border: none;
+      outline:none;
+      color: var(--text);
+      font-size: 13px;
+    }
+    .checkItem .x{
+      border:none; background: transparent;
+      color: var(--muted);
+      cursor:pointer;
+      font-size: 18px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+    .checkItem .x:hover{ color: var(--danger); }
+
+    .modalFoot{
+      padding: 12px 14px;
+      border-top:1px solid rgba(35,50,70,.7);
+      display:flex; gap:10px; justify-content:space-between; flex-wrap:wrap;
+    }
+    .leftBtns, .rightBtns{ display:flex; gap:8px; flex-wrap:wrap; }
+    .hint{
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+
+    @media (max-width: 740px){
+      .modalBody{ grid-template-columns: 1fr; }
+    }
+
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      border: 1px solid rgba(35,50,70,.85);
+      background: rgba(14,21,32,.75);
+      color: var(--muted);
+    }
+
+    /* Calendar */
+    .calGrid{
+      display:grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap:8px;
+    }
+    .calDow{
+      font-size:11px;
+      color: var(--muted);
+      text-align:center;
+      padding: 4px 0;
+    }
+    .calDay{
+      border:1px solid rgba(35,50,70,.75);
+      border-radius: 14px;
+      padding: 8px;
+      min-height: 80px;
+      background: rgba(14,21,32,.55);
+      cursor:pointer;
+    }
+    .calDay:hover{ border-color: rgba(74,163,255,.45); }
+    .calDay.muted{ opacity:.45; cursor: default; }
+    .calDayNum{
+      display:flex; justify-content:space-between; align-items:center;
+      font-weight:800; font-size:12px;
+      margin-bottom: 6px;
+    }
+    .calBadges{ display:flex; flex-wrap:wrap; gap:6px; }
+    .calTag{
+      font-size:10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border:1px solid rgba(35,50,70,.7);
+      background: rgba(16,23,35,.55);
+      color: var(--muted);
+    }
+    .calTag.today{
+      border-color: rgba(74,163,255,.6);
+      background: rgba(74,163,255,.16);
+      color:#d7ecff;
+    }
+
+    /* little list inside calendar modal */
+    .listBox{
+      border:1px solid rgba(35,50,70,.8);
+      border-radius: 14px;
+      background: rgba(14,21,32,.55);
+      padding: 10px;
+    }
+    .listRow{
+      display:flex; justify-content:space-between; align-items:center; gap:10px;
+      padding: 8px 8px;
+      border-radius: 12px;
+    }
+    .listRow:hover{ background: rgba(255,255,255,.03); }
+    .listRow .t{ font-weight:700; font-size:13px; }
+    .listRow .s{ color: var(--muted); font-size:12px; }
+
+  </style>
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="row">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="titlewrap">
+          <div class="h1">Care Board (Home) <span class="mini">(v2)</span></div>
+          <div class="sub">Trello-style caregiving tasks • Autosaves on this device</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <span class="pill" id="saveStatus" title="Save status">
+          <span class="savedDot" id="saveDot"></span><span id="saveText">Saved</span>
+        </span>
+
+        <span class="pill clickable" id="weatherPill" title="Click to set city / refresh weather">
+          <span class="miniDot"></span><span id="weatherText">Weather: —</span>
+        </span>
+
+        <button class="btn" id="calendarBtn" title="Calendar view">📅 Calendar</button>
+        <button class="btn" id="alertsBtn" title="Enable browser notifications">🔔 Enable Alerts</button>
+
+        <input class="input" id="search" placeholder="Search tasks… (title, notes, checklist)" />
+        <select class="select" id="filter">
+          <option value="all">Show: All</option>
+          <option value="today">Show: Due Today</option>
+          <option value="overdue">Show: Overdue</option>
+          <option value="open">Show: Open (not fully done)</option>
+        </select>
+
+        <button class="btn ok" id="newDayBtn" title="Resets checklists for tasks marked Daily">New Day (reset daily)</button>
+        <button class="btn" id="exportBtn">Export</button>
+        <button class="btn" id="importBtn">Import</button>
+        <button class="btn primary" id="addCardQuick">+ Add Task</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="hint">
+      Tip: Drag cards between columns. Click a card to edit. Reminders are inside each task.
+      Try <span class="kbd">Ctrl</span> + <span class="kbd">Shift</span> + <span class="kbd">R</span> if you don’t see v2.
+    </div>
+    <div class="board" id="board" aria-label="Care board columns"></div>
+  </div>
+
+  <!-- Task Modal -->
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modalHead">
+        <div class="mh" id="modalTitle">Edit Task</div>
+        <button class="btn" id="closeModal" aria-label="Close">Close</button>
+      </div>
+
+      <div class="modalBody">
+        <div class="field full">
+          <label>Task title</label>
+          <input class="input" id="m_title" placeholder="e.g., Morning routine – Daughter A" />
+        </div>
+
+        <div class="field">
+          <label>For</label>
+          <select class="select" id="m_for">
+            <option value="Daughter A">Daughter A</option>
+            <option value="Daughter B">Daughter B</option>
+            <option value="Both">Both</option>
+            <option value="Family/Admin">Family/Admin</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Assigned to</label>
+          <select class="select" id="m_assigned">
+            <option value="Mom">Mom</option>
+            <option value="Dad">Dad</option>
+            <option value="Both">Both</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Due date (optional)</label>
+          <input class="input" id="m_due" type="date"/>
+        </div>
+
+        <div class="field">
+          <label>Repeat</label>
+          <select class="select" id="m_repeat">
+            <option value="none">No repeat</option>
+            <option value="daily">Daily</option>
+          </select>
+        </div>
+
+        <!-- ✅ Reminder -->
+        <div class="field full">
+          <label>Reminder (alarm)</label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; color:var(--text);">
+              <input type="checkbox" id="m_remindOn" />
+              Enable reminder
+            </label>
+            <input class="input" id="m_remindTime" type="time" style="max-width:180px;" />
+            <span class="mini">Tip: Click “Enable Alerts” in the top bar for notifications.</span>
+          </div>
+        </div>
+
+        <div class="field full">
+          <label>Notes</label>
+          <textarea class="input textarea" id="m_notes" placeholder="Short notes, instructions, or reminders…"></textarea>
+        </div>
+
+        <div class="field full">
+          <label>Checklist</label>
+          <div class="checklist" id="checklist"></div>
+          <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn" id="addCheckItem">+ Add checklist item</button>
+            <button class="btn" id="markAllDone">Mark all done</button>
+            <button class="btn" id="clearDone">Clear done</button>
+          </div>
+          <div class="hint">Checklist is great for step-by-step routines (simple, consistent).</div>
+        </div>
+      </div>
+
+      <div class="modalFoot">
+        <div class="leftBtns">
+          <button class="btn danger" id="deleteTask">Delete</button>
+          <button class="btn" id="duplicateTask">Duplicate</button>
+        </div>
+        <div class="rightBtns">
+          <button class="btn" id="cancelTask">Cancel</button>
+          <button class="btn primary" id="saveTask">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export/Import Modal -->
+  <div class="overlay" id="ioOverlay" role="dialog" aria-modal="true" aria-labelledby="ioTitle">
+    <div class="modal">
+      <div class="modalHead">
+        <div class="mh" id="ioTitle">Export / Import</div>
+        <button class="btn" id="closeIO">Close</button>
+      </div>
+      <div class="modalBody">
+        <div class="field full">
+          <label>Board data (JSON)</label>
+          <textarea class="input textarea" id="ioText" style="min-height:220px;" placeholder="Use Export to copy. Use Import to paste."></textarea>
+          <div class="hint">
+            Export creates a backup you can save (e.g., in Google Drive). Import replaces your current board on this device.
+          </div>
+        </div>
+      </div>
+      <div class="modalFoot">
+        <div class="leftBtns">
+          <button class="btn" id="copyIO">Copy</button>
+        </div>
+        <div class="rightBtns">
+          <button class="btn danger" id="doImport">Import (replace)</button>
+          <button class="btn ok" id="doExport">Export (refresh)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar Modal -->
+  <div class="overlay" id="calOverlay" role="dialog" aria-modal="true" aria-labelledby="calTitle">
+    <div class="modal">
+      <div class="modalHead">
+        <div class="mh" id="calTitle">Calendar</div>
+        <button class="btn" id="closeCal">Close</button>
+      </div>
+      <div class="modalBody" style="grid-template-columns: 1.4fr .6fr;">
+        <div class="field full" style="grid-column: 1 / 2;">
+          <div style="display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <button class="btn" id="calPrev">◀</button>
+              <button class="btn" id="calToday">Today</button>
+              <button class="btn" id="calNext">▶</button>
+            </div>
+            <div class="pill"><span id="calMonthLabel"></span></div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div class="calGrid" id="calDowRow" style="margin-bottom:8px;"></div>
+            <div class="calGrid" id="calGrid"></div>
+          </div>
+        </div>
+
+        <div class="field full" style="grid-column: 2 / 3;">
+          <label>Selected day</label>
+          <div class="listBox" style="margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">
+              <div class="t" style="font-weight:900;" id="calSelectedLabel">—</div>
+              <div class="mini" id="calSelectedMeta"></div>
+            </div>
+          </div>
+
+          <label>Tasks</label>
+          <div class="listBox" id="calTaskList" style="min-height:220px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weather Modal -->
+  <div class="overlay" id="wxOverlay" role="dialog" aria-modal="true" aria-labelledby="wxTitle">
+    <div class="modal">
+      <div class="modalHead">
+        <div class="mh" id="wxTitle">Weather</div>
+        <button class="btn" id="closeWx">Close</button>
+      </div>
+      <div class="modalBody">
+        <div class="field full">
+          <label>City (saved on this device)</label>
+          <input class="input" id="wxCity" placeholder="e.g., Hamilton, Ontario" />
+          <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn ok" id="wxSave">Save City</button>
+            <button class="btn" id="wxRefresh">Refresh Weather</button>
+          </div>
+          <div class="hint" id="wxStatus">Enter a city, save, then refresh.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const STORAGE_KEY = "care_board_v1"; // keep your existing saved board
+  const WX_KEY = "care_board_city_v1";
+
+  const todayISO = () => new Date().toISOString().slice(0,10);
+  const isSameDay = (isoDate, targetIso) => isoDate && isoDate === targetIso;
+  const isOverdue = (isoDate) => {
+    if(!isoDate) return false;
+    return isoDate < todayISO();
+  };
+  const uid = () => Math.random().toString(36).slice(2,10) + "-" + Date.now().toString(36);
+
+  const defaultBoard = () => ({
+    version: 2,
+    updatedAt: Date.now(),
+    columns: [
+      { id: "col-morning", title: "Morning", cards: [] },
+      { id: "col-day", title: "Daytime", cards: [] },
+      { id: "col-therapy", title: "Therapy / Practice", cards: [] },
+      { id: "col-evening", title: "Evening", cards: [] },
+      { id: "col-admin", title: "Admin", cards: [] }
+    ]
+  });
+
+  const sampleSeed = (board) => {
+    const t = todayISO();
+    const mk = (title, opts={}) => ({
+      id: uid(),
+      title,
+      for: opts.for ?? "Both",
+      assigned: opts.assigned ?? "Both",
+      due: opts.due ?? t,
+      repeat: opts.repeat ?? "daily",
+      notes: opts.notes ?? "",
+      checklist: (opts.checklist ?? []).map(text => ({ id: uid(), text, done:false })),
+      remindOn: opts.remindOn ?? false,
+      remindTime: opts.remindTime ?? "08:00",
+      createdAt: Date.now()
+    });
+
+    const addTo = (colId, card) => board.columns.find(c => c.id===colId).cards.push(card);
+
+    addTo("col-morning", mk("Morning routine – Daughter A", {
+      for:"Daughter A", assigned:"Both", repeat:"daily",
+      remindOn:true, remindTime:"07:30",
+      checklist:["Bathroom","Brush teeth","Breakfast","Get dressed","Pack essentials"]
+    }));
+    addTo("col-morning", mk("Morning routine – Daughter B", {
+      for:"Daughter B", assigned:"Both", repeat:"daily",
+      remindOn:true, remindTime:"07:45",
+      checklist:["Bathroom","Brush teeth","Breakfast","Get dressed","Comfort item"]
+    }));
+    addTo("col-therapy", mk("Communication practice (10 minutes)", {
+      for:"Both", assigned:"Dad", repeat:"daily",
+      remindOn:false, remindTime:"16:30",
+      checklist:["Start calm","Short activity","Praise / reinforcement","Note what worked"]
+    }));
+    addTo("col-admin", mk("Upload receipts / paperwork", {
+      for:"Family/Admin", assigned:"Mom", repeat:"none",
+      due: "",
+      remindOn:false,
+      checklist:["Collect receipts","Take photo","File in folder","Record date"]
+    }));
+  };
+
+  // UI refs
+  const elBoard = document.getElementById("board");
+  const elSearch = document.getElementById("search");
+  const elFilter = document.getElementById("filter");
+
+  const elSaveText = document.getElementById("saveText");
+  const elSaveDot = document.getElementById("saveDot");
+
+  const calendarBtn = document.getElementById("calendarBtn");
+  const alertsBtn = document.getElementById("alertsBtn");
+  const weatherPill = document.getElementById("weatherPill");
+  const weatherText = document.getElementById("weatherText");
+
+  const overlay = document.getElementById("overlay");
+  const closeModalBtn = document.getElementById("closeModal");
+  const saveTaskBtn = document.getElementById("saveTask");
+  const cancelTaskBtn = document.getElementById("cancelTask");
+  const deleteTaskBtn = document.getElementById("deleteTask");
+  const duplicateTaskBtn = document.getElementById("duplicateTask");
+
+  const m_title = document.getElementById("m_title");
+  const m_for = document.getElementById("m_for");
+  const m_assigned = document.getElementById("m_assigned");
+  const m_due = document.getElementById("m_due");
+  const m_repeat = document.getElementById("m_repeat");
+  const m_notes = document.getElementById("m_notes");
+  const m_remindOn = document.getElementById("m_remindOn");
+  const m_remindTime = document.getElementById("m_remindTime");
+
+  const checklistEl = document.getElementById("checklist");
+  const addCheckItemBtn = document.getElementById("addCheckItem");
+  const markAllDoneBtn = document.getElementById("markAllDone");
+  const clearDoneBtn = document.getElementById("clearDone");
+
+  const ioOverlay = document.getElementById("ioOverlay");
+  const ioText = document.getElementById("ioText");
+  const exportBtn = document.getElementById("exportBtn");
+  const importBtn = document.getElementById("importBtn");
+  const closeIO = document.getElementById("closeIO");
+  const doExport = document.getElementById("doExport");
+  const doImport = document.getElementById("doImport");
+  const copyIO = document.getElementById("copyIO");
+
+  const addCardQuick = document.getElementById("addCardQuick");
+  const newDayBtn = document.getElementById("newDayBtn");
+
+  // Calendar modal refs
+  const calOverlay = document.getElementById("calOverlay");
+  const closeCal = document.getElementById("closeCal");
+  const calPrev = document.getElementById("calPrev");
+  const calNext = document.getElementById("calNext");
+  const calToday = document.getElementById("calToday");
+  const calMonthLabel = document.getElementById("calMonthLabel");
+  const calDowRow = document.getElementById("calDowRow");
+  const calGrid = document.getElementById("calGrid");
+  const calSelectedLabel = document.getElementById("calSelectedLabel");
+  const calSelectedMeta = document.getElementById("calSelectedMeta");
+  const calTaskList = document.getElementById("calTaskList");
+
+  // Weather modal refs
+  const wxOverlay = document.getElementById("wxOverlay");
+  const closeWx = document.getElementById("closeWx");
+  const wxCity = document.getElementById("wxCity");
+  const wxSave = document.getElementById("wxSave");
+  const wxRefresh = document.getElementById("wxRefresh");
+  const wxStatus = document.getElementById("wxStatus");
+
+  // Save indicator
+  let saveTimer = null;
+  const setUnsaved = () => {
+    elSaveText.textContent = "Saving…";
+    elSaveDot.className = "unsavedDot";
+  };
+  const setSaved = () => {
+    elSaveText.textContent = "Saved";
+    elSaveDot.className = "savedDot";
+  };
+
+  const save = (b) => {
+    setUnsaved();
+    b.updatedAt = Date.now();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(b));
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(setSaved, 200);
+  };
+
+  const load = () => {
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw){
+        const b = defaultBoard();
+        sampleSeed(b);
+        save(b);
+        return b;
+      }
+      const b = JSON.parse(raw);
+      if(!b.columns || !Array.isArray(b.columns)) return defaultBoard();
+
+      // ensure new fields exist on cards (migration-ish)
+      for (const col of b.columns){
+        for (const card of col.cards){
+          if (typeof card.remindOn !== "boolean") card.remindOn = false;
+          if (!card.remindTime) card.remindTime = "08:00";
+        }
+      }
+      return b;
+    }catch(e){
+      console.warn("Load failed:", e);
+      return defaultBoard();
+    }
+  };
+
+  let board = load();
+
+  // State
+  let modalState = { open:false, cardId:null, colId:null, draft:null, isNew:false };
+
+  // Helpers
+  const findCard = (cardId) => {
+    for(const col of board.columns){
+      const idx = col.cards.findIndex(c => c.id === cardId);
+      if(idx !== -1) return { col, idx, card: col.cards[idx] };
+    }
+    return null;
+  };
+
+  const escapeHtml = (str) => (str||"")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+
+  const normalize = (s) => (s||"").toLowerCase();
+  const matchesQuery = (card, q) => {
+    if(!q) return true;
+    const t = normalize(card.title);
+    const n = normalize(card.notes);
+    const cl = normalize((card.checklist||[]).map(i => i.text).join(" "));
+    return (t+n+cl).includes(q);
+  };
+
+  const checklistProgress = (card) => {
+    const total = (card.checklist||[]).length;
+    const done = (card.checklist||[]).filter(i => i.done).length;
+    const pct = total ? Math.round(done/total*100) : 0;
+    const fullyDone = total ? done === total : false;
+    return { total, done, pct, fullyDone };
+  };
+
+  const currentFilter = () => elFilter.value;
+  const currentSearch = () => normalize(elSearch.value.trim());
+
+  const cardVisible = (card) => {
+    const q = currentSearch();
+    if(!matchesQuery(card, q)) return false;
+
+    const f = currentFilter();
+    const prog = checklistProgress(card);
+    const t = todayISO();
+
+    if(f === "today"){
+      return isSameDay(card.due, t) || (card.repeat === "daily");
+    }
+    if(f === "overdue"){
+      return isOverdue(card.due);
+    }
+    if(f === "open"){
+      return !prog.fullyDone;
+    }
+    return true;
+  };
+
+  // ✅ Progress background glow
+  const updateProgressBackground = () => {
+    let total = 0;
+    let done = 0;
+
+    for (const col of board.columns) {
+      for (const card of col.cards) {
+        const cl = card.checklist || [];
+        total += cl.length;
+        done  += cl.filter(i => i.done).length;
+      }
+    }
+
+    // live preview when modal open
+    if (overlay.classList.contains("show") && modalState?.draft) {
+      const d = modalState.draft;
+      const dTotal = (d.checklist || []).length;
+      const dDone  = (d.checklist || []).filter(i => i.done).length;
+
+      if (modalState.isNew) {
+        total += dTotal;
+        done  += dDone;
+      } else {
+        const found = findCard(modalState.cardId);
+        if (found) {
+          const oldCl = found.card.checklist || [];
+          total = total - oldCl.length + dTotal;
+          done  = done  - oldCl.filter(i => i.done).length + dDone;
+        }
+      }
+    }
+
+    const p = total ? (done / total) : 0;
+
+    const blueA  = (0.10 + 0.80 * p).toFixed(3);
+    const greenA = (0.08 + 0.70 * p).toFixed(3);
+    const liftA  = (0.01 + 0.22 * p).toFixed(3);
+    const tintA  = (0.10 + 0.55 * p).toFixed(3);
+
+    document.documentElement.style.setProperty("--blueA", blueA);
+    document.documentElement.style.setProperty("--greenA", greenA);
+    document.documentElement.style.setProperty("--liftA", liftA);
+    document.documentElement.style.setProperty("--tintA", tintA);
+  };
+
+  // Expose manual testing
+  window.setCareGlow = (p) => {
+    document.documentElement.style.setProperty("--blueA",  (0.10 + 0.80*p).toFixed(3));
+    document.documentElement.style.setProperty("--greenA", (0.08 + 0.70*p).toFixed(3));
+    document.documentElement.style.setProperty("--liftA",  (0.01 + 0.22*p).toFixed(3));
+    document.documentElement.style.setProperty("--tintA",  (0.10 + 0.55*p).toFixed(3));
+  };
+
+  // Render board
+  const render = () => {
+    elBoard.innerHTML = "";
+
+    for(const col of board.columns){
+      const visibleCards = col.cards.filter(cardVisible);
+
+      const colEl = document.createElement("div");
+      colEl.className = "col";
+      colEl.dataset.colId = col.id;
+
+      const head = document.createElement("div");
+      head.className = "colHeader";
+
+      const title = document.createElement("div");
+      title.className = "colTitle";
+      title.innerHTML = `<span>${escapeHtml(col.title)}</span> <span class="count">${visibleCards.length}</span>`;
+
+      const addBtn = document.createElement("button");
+      addBtn.className = "btn primary";
+      addBtn.textContent = "+";
+      addBtn.title = "Add task to this column";
+      addBtn.addEventListener("click", () => openModalForNew(col.id));
+
+      head.appendChild(title);
+      head.appendChild(addBtn);
+
+      const body = document.createElement("div");
+      body.className = "colBody";
+      body.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        body.classList.add("dropHint");
+      });
+      body.addEventListener("dragleave", () => body.classList.remove("dropHint"));
+      body.addEventListener("drop", (e) => {
+        e.preventDefault();
+        body.classList.remove("dropHint");
+        const cardId = e.dataTransfer.getData("text/plain");
+        moveCard(cardId, col.id);
+      });
+
+      for(const card of visibleCards){
+        body.appendChild(renderCard(card));
+      }
+
+      colEl.appendChild(head);
+      colEl.appendChild(body);
+      elBoard.appendChild(colEl);
+    }
+
+    updateProgressBackground();
+  };
+
+  const renderCard = (card) => {
+    const cardEl = document.createElement("div");
+    cardEl.className = "card";
+    cardEl.draggable = true;
+    cardEl.dataset.cardId = card.id;
+
+    const prog = checklistProgress(card);
+    const t = todayISO();
+
+    const dueBadge = (() => {
+      if(card.repeat === "daily") return `<span class="badge today">Daily</span>`;
+      if(!card.due) return "";
+      if(isSameDay(card.due, t)) return `<span class="badge today">Today</span>`;
+      if(isOverdue(card.due)) return `<span class="badge overdue">Overdue</span>`;
+      return `<span class="badge">Due ${card.due}</span>`;
+    })();
+
+    const doneBadge = (prog.total && prog.fullyDone)
+      ? `<span class="badge done">Done</span>` : "";
+
+    const remindBadge = (card.remindOn && card.remindTime)
+      ? `<span class="badge remind">⏰ ${escapeHtml(card.remindTime)}</span>` : "";
+
+    const top = document.createElement("div");
+    top.className = "cardTop";
+    top.innerHTML = `
+      <div>
+        <div class="cardTitle">${escapeHtml(card.title || "(Untitled task)")}</div>
+        <div class="mini">${escapeHtml(card.for)} • ${escapeHtml(card.assigned)}</div>
+      </div>
+      <div class="mini">${card.due ? escapeHtml(card.due) : ""}</div>
+    `;
+
+    const badges = document.createElement("div");
+    badges.className = "badges";
+    badges.innerHTML = `
+      ${dueBadge}
+      ${doneBadge}
+      ${remindBadge}
+      ${card.notes ? `<span class="badge">Notes</span>` : ""}
+      ${prog.total ? `<span class="badge">${prog.done}/${prog.total}</span>` : `<span class="badge">No checklist</span>`}
+    `;
+
+    const checkline = document.createElement("div");
+    checkline.className = "checkline";
+    checkline.innerHTML = `
+      <span>${prog.total ? "Checklist progress" : "Tip: add steps in checklist"}</span>
+      <span>${prog.total ? prog.pct + "%" : ""}</span>
+    `;
+
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    const fill = document.createElement("div");
+    fill.style.width = prog.pct + "%";
+    bar.appendChild(fill);
+
+    cardEl.appendChild(top);
+    cardEl.appendChild(badges);
+    cardEl.appendChild(checkline);
+    cardEl.appendChild(bar);
+
+    cardEl.addEventListener("click", () => openModalForEdit(card.id));
+
+    cardEl.addEventListener("dragstart", (e) => {
+      cardEl.classList.add("dragging");
+      e.dataTransfer.setData("text/plain", card.id);
+      e.dataTransfer.effectAllowed = "move";
+    });
+    cardEl.addEventListener("dragend", () => cardEl.classList.remove("dragging"));
+
+    return cardEl;
+  };
+
+  // Move card
+  const moveCard = (cardId, targetColId) => {
+    const found = findCard(cardId);
+    if(!found) return;
+    if(found.col.id === targetColId) return;
+
+    const target = board.columns.find(c => c.id === targetColId);
+    if(!target) return;
+
+    const [card] = found.col.cards.splice(found.idx, 1);
+    target.cards.unshift(card);
+
+    save(board);
+    render();
+    scheduleAllReminders();
+  };
+
+  // Modal logic
+  const showModal = (show) => {
+    overlay.classList.toggle("show", show);
+    if(!show){
+      modalState = { open:false, cardId:null, colId:null, draft:null, isNew:false };
+      updateProgressBackground();
+    }
+  };
+
+  const fillModal = (card) => {
+    document.getElementById("modalTitle").textContent = (modalState.isNew ? "New Task" : "Edit Task");
+    m_title.value = card.title || "";
+    m_for.value = card.for || "Both";
+    m_assigned.value = card.assigned || "Both";
+    m_due.value = card.due || "";
+    m_repeat.value = card.repeat || "none";
+    m_notes.value = card.notes || "";
+    m_remindOn.checked = !!card.remindOn;
+    m_remindTime.value = card.remindTime || "08:00";
+    renderChecklist(card);
+    updateProgressBackground();
+  };
+
+  const openModalForNew = (colId) => {
+    const newCard = {
+      id: uid(),
+      title: "",
+      for: "Both",
+      assigned: "Both",
+      due: todayISO(),
+      repeat: "daily",
+      notes: "",
+      checklist: [],
+      remindOn: false,
+      remindTime: "08:00",
+      createdAt: Date.now()
+    };
+    modalState = { open:true, cardId: newCard.id, colId, draft: structuredClone(newCard), isNew:true };
+    fillModal(modalState.draft);
+    showModal(true);
+    m_title.focus();
+  };
+
+  const openModalForEdit = (cardId) => {
+    const found = findCard(cardId);
+    if(!found) return;
+    modalState = { open:true, cardId, colId: found.col.id, draft: structuredClone(found.card), isNew:false };
+    fillModal(modalState.draft);
+    showModal(true);
+    m_title.focus();
+  };
+
+  const setDraftFromModal = () => {
+    modalState.draft.title = m_title.value.trim();
+    modalState.draft.for = m_for.value;
+    modalState.draft.assigned = m_assigned.value;
+    modalState.draft.due = m_due.value;
+    modalState.draft.repeat = m_repeat.value;
+    modalState.draft.notes = m_notes.value.trim();
+    modalState.draft.remindOn = !!m_remindOn.checked;
+    modalState.draft.remindTime = m_remindTime.value || "08:00";
+  };
+
+  const renderChecklist = (card) => {
+    checklistEl.innerHTML = "";
+    if(!(card.checklist||[]).length){
+      const empty = document.createElement("div");
+      empty.className = "mini";
+      empty.style.padding = "6px 2px";
+      empty.textContent = "No checklist items yet.";
+      checklistEl.appendChild(empty);
+      return;
+    }
+
+    for(const item of card.checklist){
+      const row = document.createElement("div");
+      row.className = "checkItem";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!item.done;
+      cb.addEventListener("change", () => {
+        item.done = cb.checked;
+        setDraftFromModal();
+        updateProgressBackground();
+        renderChecklist(modalState.draft);
+      });
+
+      const txt = document.createElement("input");
+      txt.type = "text";
+      txt.value = item.text || "";
+      txt.placeholder = "Checklist step…";
+      txt.addEventListener("input", () => {
+        item.text = txt.value;
+        setDraftFromModal();
+      });
+
+      const del = document.createElement("button");
+      del.className = "x";
+      del.title = "Remove item";
+      del.textContent = "×";
+      del.addEventListener("click", () => {
+        modalState.draft.checklist = modalState.draft.checklist.filter(i => i.id !== item.id);
+        setDraftFromModal();
+        renderChecklist(modalState.draft);
+        updateProgressBackground();
+      });
+
+      row.appendChild(cb);
+      row.appendChild(txt);
+      row.appendChild(del);
+      checklistEl.appendChild(row);
+    }
+  };
+
+  const commitModalToBoard = () => {
+    setDraftFromModal();
+    const d = modalState.draft;
+
+    if(modalState.isNew){
+      const col = board.columns.find(c => c.id === modalState.colId) || board.columns[0];
+      col.cards.unshift(d);
+    }else{
+      const found = findCard(modalState.cardId);
+      if(found){
+        found.col.cards[found.idx] = d;
+      }
+    }
+
+    save(board);
+    render();
+    showModal(false);
+    scheduleAllReminders();
+    refreshCalendar(); // if open
+  };
+
+  const deleteFromBoard = () => {
+    if(modalState.isNew){
+      showModal(false);
+      return;
+    }
+    const found = findCard(modalState.cardId);
+    if(!found) return;
+    found.col.cards.splice(found.idx, 1);
+    save(board);
+    render();
+    showModal(false);
+    scheduleAllReminders();
+    refreshCalendar();
+  };
+
+  const duplicateInBoard = () => {
+    setDraftFromModal();
+    const d = structuredClone(modalState.draft);
+    d.id = uid();
+    d.createdAt = Date.now();
+    d.checklist = (d.checklist||[]).map(i => ({...i, id: uid(), done:false}));
+    const col = board.columns.find(c => c.id === modalState.colId) || board.columns[0];
+    col.cards.unshift(d);
+    save(board);
+    render();
+    scheduleAllReminders();
+    refreshCalendar();
+  };
+
+  // Modal buttons
+  closeModalBtn.addEventListener("click", () => showModal(false));
+  cancelTaskBtn.addEventListener("click", () => showModal(false));
+  saveTaskBtn.addEventListener("click", commitModalToBoard);
+  deleteTaskBtn.addEventListener("click", () => {
+    const ok = confirm("Delete this task?");
+    if(ok) deleteFromBoard();
+  });
+  duplicateTaskBtn.addEventListener("click", duplicateInBoard);
+
+  // Checklist buttons
+  addCheckItemBtn.addEventListener("click", () => {
+    modalState.draft.checklist.push({ id: uid(), text:"", done:false });
+    updateProgressBackground();
+    renderChecklist(modalState.draft);
+  });
+  markAllDoneBtn.addEventListener("click", () => {
+    modalState.draft.checklist.forEach(i => i.done = true);
+    updateProgressBackground();
+    renderChecklist(modalState.draft);
+  });
+  clearDoneBtn.addEventListener("click", () => {
+    modalState.draft.checklist.forEach(i => i.done = false);
+    updateProgressBackground();
+    renderChecklist(modalState.draft);
+  });
+
+  // quick add
+  addCardQuick.addEventListener("click", () => openModalForNew(board.columns[0]?.id || "col-morning"));
+
+  // New Day reset
+  newDayBtn.addEventListener("click", () => {
+    const ok = confirm("Reset daily tasks for a new day? (Clears checklist completion on tasks marked Daily)");
+    if(!ok) return;
+
+    const t = todayISO();
+    for(const col of board.columns){
+      for(const card of col.cards){
+        if(card.repeat === "daily"){
+          card.due = t;
+          if(card.checklist?.length){
+            card.checklist.forEach(i => i.done = false);
+          }
+        }
+      }
+    }
+    save(board);
+    render();
+    scheduleAllReminders();
+    refreshCalendar();
+  });
+
+  // Search + filter
+  elSearch.addEventListener("input", render);
+  elFilter.addEventListener("change", render);
+
+  // keyboard shortcuts
+  document.addEventListener("keydown", (e) => {
+    if(overlay.classList.contains("show")){
+      if(e.key === "Escape") showModal(false);
+      if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s"){
+        e.preventDefault();
+        commitModalToBoard();
+      }
+    }
+    if(calOverlay.classList.contains("show") && e.key === "Escape") showCal(false);
+    if(wxOverlay.classList.contains("show") && e.key === "Escape") showWx(false);
+    if(ioOverlay.classList.contains("show") && e.key === "Escape") showIO(false);
+  });
+
+  // IO modal
+  const showIO = (show) => ioOverlay.classList.toggle("show", show);
+  exportBtn.addEventListener("click", () => { showIO(true); doExport.click(); });
+  importBtn.addEventListener("click", () => { showIO(true); ioText.value = ""; ioText.focus(); });
+  closeIO.addEventListener("click", () => showIO(false));
+  doExport.addEventListener("click", () => {
+    ioText.value = JSON.stringify(board, null, 2);
+  });
+  copyIO.addEventListener("click", async () => {
+    try{
+      await navigator.clipboard.writeText(ioText.value);
+      alert("Copied.");
+    }catch{
+      alert("Copy failed. You can manually select and copy.");
+    }
+  });
+  doImport.addEventListener("click", () => {
+    const ok = confirm("Import will REPLACE your current board on this device. Continue?");
+    if(!ok) return;
+    try{
+      const parsed = JSON.parse(ioText.value);
+      if(!parsed.columns || !Array.isArray(parsed.columns)) throw new Error("Invalid format");
+      board = parsed;
+      // ensure reminder fields
+      for (const col of board.columns){
+        for (const card of col.cards){
+          if (typeof card.remindOn !== "boolean") card.remindOn = false;
+          if (!card.remindTime) card.remindTime = "08:00";
+        }
+      }
+      save(board);
+      render();
+      showIO(false);
+      alert("Imported.");
+      scheduleAllReminders();
+      refreshCalendar();
+    }catch(e){
+      alert("Import failed. Make sure you pasted valid JSON exported from this app.");
+    }
+  });
+
+  // Click outside to close modals
+  overlay.addEventListener("click", (e) => { if(e.target === overlay) showModal(false); });
+  ioOverlay.addEventListener("click", (e) => { if(e.target === ioOverlay) showIO(false); });
+  calOverlay.addEventListener("click", (e) => { if(e.target === calOverlay) showCal(false); });
+  wxOverlay.addEventListener("click", (e) => { if(e.target === wxOverlay) showWx(false); });
+
+  // ---------------------------
+  // Alerts / Reminders (Option A)
+  // ---------------------------
+  const getPerm = () => (typeof Notification !== "undefined" ? Notification.permission : "unsupported");
+
+  const updateAlertsBtn = () => {
+    const p = getPerm();
+    if (p === "granted") {
+      alertsBtn.textContent = "🔔 Alerts: On";
+      alertsBtn.classList.add("ok");
+    } else if (p === "denied") {
+      alertsBtn.textContent = "🔔 Alerts: Blocked";
+      alertsBtn.classList.remove("ok");
+    } else if (p === "default") {
+      alertsBtn.textContent = "🔔 Enable Alerts";
+      alertsBtn.classList.remove("ok");
+    } else {
+      alertsBtn.textContent = "🔔 Alerts: N/A";
+      alertsBtn.classList.remove("ok");
+    }
+  };
+
+  alertsBtn.addEventListener("click", async () => {
+    if (typeof Notification === "undefined") {
+      alert("This browser does not support notifications. Reminders will use popups instead.");
+      return;
+    }
+    try{
+      const res = await Notification.requestPermission();
+      updateAlertsBtn();
+      if (res === "granted") {
+        new Notification("Care Board", { body: "Alerts enabled ✅" });
+      }
+    }catch{
+      alert("Could not request notification permission.");
+    }
+  });
+
+  const notify = (title, body) => {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification(title, { body });
+    } else {
+      alert(title + "\n\n" + body);
+    }
+  };
+
+  let reminderTimers = [];
+
+  const clearReminders = () => {
+    for (const t of reminderTimers) clearTimeout(t);
+    reminderTimers = [];
+  };
+
+  const parseHHMM = (hhmm) => {
+    const [h, m] = (hhmm||"").split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return {h, m};
+  };
+
+  const nextFireTime = (card) => {
+    if (!card.remindOn) return null;
+    const tm = parseHHMM(card.remindTime);
+    if (!tm) return null;
+
+    const now = new Date();
+    const fire = new Date(now);
+    fire.setSeconds(0, 0);
+    fire.setHours(tm.h, tm.m, 0, 0);
+
+    if (card.repeat === "daily") {
+      if (fire <= now) fire.setDate(fire.getDate() + 1);
+      return fire;
+    }
+
+    // non-daily: require due date
+    if (!card.due) return null;
+    const due = new Date(card.due + "T00:00:00");
+    if (Number.isNaN(due.getTime())) return null;
+
+    const dueFire = new Date(due);
+    dueFire.setHours(tm.h, tm.m, 0, 0);
+    if (dueFire <= now) return null;
+    return dueFire;
+  };
+
+  const scheduleAllReminders = () => {
+    clearReminders();
+
+    // schedule each enabled reminder
+    for (const col of board.columns) {
+      for (const card of col.cards) {
+        const when = nextFireTime(card);
+        if (!when) continue;
+
+        const ms = when.getTime() - Date.now();
+        // safety clamp
+        if (ms < 1000) continue;
+
+        const id = setTimeout(() => {
+          notify("⏰ Reminder: " + (card.title || "Task"), `${card.for} • ${card.assigned}`);
+          // reschedule daily reminders
+          scheduleAllReminders();
+        }, ms);
+
+        reminderTimers.push(id);
+      }
+    }
+  };
+
+  // ---------------------------
+  // Calendar (Option A)
+  // ---------------------------
+  const showCal = (show) => calOverlay.classList.toggle("show", show);
+
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const dowNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  // current calendar month state
+  let calRef = new Date();
+  calRef.setDate(1);
+
+  const toISO = (d) => d.toISOString().slice(0,10);
+
+  const allCards = () => board.columns.flatMap(c => c.cards.map(card => ({...card, _colId: c.id, _colTitle: c.title})));
+
+  const cardsForDay = (iso) => {
+    const t = todayISO();
+    const cards = allCards();
+    return cards.filter(c => {
+      if (c.repeat === "daily") return true;
+      return c.due && c.due === iso;
+    }).map(c => {
+      // show as "due today" if it matches, or "daily"
+      const kind = (c.repeat === "daily") ? "Daily" : "Due";
+      const overdue = (c.repeat !== "daily" && c.due && c.due < t);
+      return { ...c, _kind: kind, _overdue: overdue };
+    });
+  };
+
+  const countsForDay = (iso) => {
+    const cards = allCards();
+    let due = 0, daily = 0;
+    for (const c of cards) {
+      if (c.repeat === "daily") daily++;
+      else if (c.due === iso) due++;
+    }
+    return { due, daily };
+  };
+
+  const formatMonthLabel = (d) => `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+
+  const refreshCalendar = () => {
+    if (!calOverlay.classList.contains("show")) return;
+
+    calMonthLabel.textContent = formatMonthLabel(calRef);
+
+    // DOW header
+    calDowRow.innerHTML = "";
+    for (const name of dowNames) {
+      const el = document.createElement("div");
+      el.className = "calDow";
+      el.textContent = name;
+      calDowRow.appendChild(el);
+    }
+
+    // build grid
+    calGrid.innerHTML = "";
+
+    const year = calRef.getFullYear();
+    const month = calRef.getMonth();
+    const first = new Date(year, month, 1);
+    const startDow = first.getDay();
+
+    // days in month
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    // show previous month fillers
+    const prevDays = startDow; // 0..6
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+
+    // total cells ~ 42
+    const totalCells = 42;
+
+    const today = todayISO();
+    let selectedIso = calSelectedLabel.dataset.iso || today;
+
+    for (let i=0; i<totalCells; i++) {
+      const cell = document.createElement("div");
+      cell.className = "calDay";
+
+      let dayNum, iso, inMonth = true;
+      if (i < prevDays) {
+        dayNum = (prevMonthLastDay - prevDays + 1) + i;
+        const d = new Date(year, month - 1, dayNum);
+        iso = toISO(d);
+        inMonth = false;
+        cell.classList.add("muted");
+      } else if (i >= prevDays + daysInMonth) {
+        dayNum = (i - (prevDays + daysInMonth)) + 1;
+        const d = new Date(year, month + 1, dayNum);
+        iso = toISO(d);
+        inMonth = false;
+        cell.classList.add("muted");
+      } else {
+        dayNum = (i - prevDays) + 1;
+        const d = new Date(year, month, dayNum);
+        iso = toISO(d);
+      }
+
+      const {due, daily} = countsForDay(iso);
+
+      cell.innerHTML = `
+        <div class="calDayNum">
+          <span>${dayNum}</span>
+          ${iso === today ? `<span class="calTag today">Today</span>` : ``}
+        </div>
+        <div class="calBadges">
+          ${due ? `<span class="calTag">${due} due</span>` : ``}
+          ${daily ? `<span class="calTag">${daily} daily</span>` : ``}
+        </div>
+      `;
+
+      if (!inMonth) {
+        cell.addEventListener("click", () => { /* ignore */ });
+      } else {
+        cell.addEventListener("click", () => {
+          renderCalDay(iso);
+        });
+      }
+
+      calGrid.appendChild(cell);
+    }
+
+    // keep selected day rendered
+    renderCalDay(selectedIso);
+  };
+
+  const renderCalDay = (iso) => {
+    calSelectedLabel.dataset.iso = iso;
+    calSelectedLabel.textContent = iso;
+    const list = cardsForDay(iso);
+
+    const dueCount = list.filter(x => x._kind === "Due").length;
+    const dailyCount = list.filter(x => x._kind === "Daily").length;
+    calSelectedMeta.textContent = `${dueCount} due • ${dailyCount} daily`;
+
+    calTaskList.innerHTML = "";
+    if (!list.length) {
+      calTaskList.innerHTML = `<div class="mini">No tasks for this day.</div>`;
+      return;
+    }
+
+    for (const c of list) {
+      const row = document.createElement("div");
+      row.className = "listRow";
+      row.innerHTML = `
+        <div>
+          <div class="t">${escapeHtml(c.title || "(Untitled)")}</div>
+          <div class="s">${escapeHtml(c._kind)} • ${escapeHtml(c.for)} • ${escapeHtml(c.assigned)} • ${escapeHtml(c._colTitle)}</div>
+        </div>
+        <button class="btn primary" style="min-height:34px; padding:8px 10px;">Edit</button>
+      `;
+      row.querySelector("button").addEventListener("click", () => {
+        showCal(false);
+        openModalForEdit(c.id);
+      });
+      calTaskList.appendChild(row);
+    }
+  };
+
+  calendarBtn.addEventListener("click", () => {
+    showCal(true);
+    refreshCalendar();
+  });
+  closeCal.addEventListener("click", () => showCal(false));
+  calPrev.addEventListener("click", () => { calRef.setMonth(calRef.getMonth() - 1); refreshCalendar(); });
+  calNext.addEventListener("click", () => { calRef.setMonth(calRef.getMonth() + 1); refreshCalendar(); });
+  calToday.addEventListener("click", () => {
+    calRef = new Date();
+    calRef.setDate(1);
+    refreshCalendar();
+  });
+
+  // ---------------------------
+  // Weather (Option A: real weather via Open-Meteo)
+  // ---------------------------
+  const showWx = (show) => wxOverlay.classList.toggle("show", show);
+
+  const weatherCodeText = (code) => {
+    // simplified mapping
+    const map = {
+      0:"Clear",
+      1:"Mainly clear",
+      2:"Partly cloudy",
+      3:"Overcast",
+      45:"Fog",
+      48:"Rime fog",
+      51:"Light drizzle",
+      53:"Drizzle",
+      55:"Heavy drizzle",
+      61:"Light rain",
+      63:"Rain",
+      65:"Heavy rain",
+      71:"Light snow",
+      73:"Snow",
+      75:"Heavy snow",
+      80:"Rain showers",
+      81:"Rain showers",
+      82:"Violent showers",
+      95:"Thunderstorm"
+    };
+    return map[code] || "Weather";
+  };
+
+  const setWeatherPill = (txt) => { weatherText.textContent = txt; };
+
+  const getSavedCity = () => localStorage.getItem(WX_KEY) || "";
+  const setSavedCity = (city) => localStorage.setItem(WX_KEY, city);
+
+  const geocodeCity = async (city) => {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("Geocoding failed");
+    const j = await r.json();
+    const hit = (j && j.results && j.results[0]) ? j.results[0] : null;
+    if (!hit) throw new Error("City not found");
+    return { lat: hit.latitude, lon: hit.longitude, name: hit.name, country: hit.country };
+  };
+
+  const fetchWeather = async (lat, lon) => {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("Weather fetch failed");
+    const j = await r.json();
+    const cur = j.current;
+    return {
+      temp: cur.temperature_2m,
+      code: cur.weather_code
+    };
+  };
+
+  const refreshWeather = async () => {
+    const city = getSavedCity();
+    if (!city) {
+      setWeatherPill("Weather: —");
+      return;
+    }
+    wxStatus.textContent = "Updating…";
+    try{
+      const g = await geocodeCity(city);
+      const w = await fetchWeather(g.lat, g.lon);
+      const label = `${Math.round(w.temp)}°C • ${weatherCodeText(w.code)} (${g.name})`;
+      setWeatherPill(label);
+      wxStatus.textContent = label;
+    }catch(e){
+      setWeatherPill("Weather: (failed)");
+      wxStatus.textContent = "Could not load weather. Check city spelling and try again.";
+    }
+  };
+
+  // open weather
+  weatherPill.addEventListener("click", () => {
+    wxCity.value = getSavedCity();
+    wxStatus.textContent = wxCity.value ? "Click Refresh Weather." : "Enter a city, save, then refresh.";
+    showWx(true);
+  });
+  closeWx.addEventListener("click", () => showWx(false));
+  wxSave.addEventListener("click", () => {
+    const city = wxCity.value.trim();
+    if (!city) { alert("Please type a city name."); return; }
+    setSavedCity(city);
+    wxStatus.textContent = "Saved. Now click Refresh Weather.";
+  });
+  wxRefresh.addEventListener("click", refreshWeather);
+
+  // auto-refresh every 30 minutes
+  setInterval(() => { refreshWeather(); }, 30 * 60 * 1000);
+
+  // ---------------------------
+  // Initial boot
+  // ---------------------------
+  updateAlertsBtn();
+  render();
+  updateProgressBackground();
+  setSaved();
+  scheduleAllReminders();
+  refreshWeather();
+
+})();
+</script>
+</body>
+</html>
