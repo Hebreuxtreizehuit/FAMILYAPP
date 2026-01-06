@@ -314,6 +314,9 @@
       box-shadow: var(--shadow);
       overflow:hidden;
     }
+    /* Lock overlay uses same overlay style, but we force it to show/hide via JS */
+#lockOverlay.show { display:flex !important; }
+#pinInput { letter-spacing: 6px; font-weight: 800; text-align: center; }
     .modalHead{
       padding: 12px 14px;
       border-bottom:1px solid rgba(35,50,70,.7);
@@ -1814,6 +1817,29 @@
   refreshWeather();
 
 })();
+<!-- App Lock Overlay -->
+<div class="overlay" id="lockOverlay" style="display:none;">
+  <div class="modal" style="max-width:420px;">
+    <div class="modalHead">
+      <div class="mh" id="lockTitle">Care Board Locked</div>
+    </div>
+
+    <div class="modalBody" style="grid-template-columns:1fr; gap:10px;">
+      <div class="field full">
+        <label id="lockLabel">Enter PIN</label>
+        <input class="input" id="pinInput" inputmode="numeric" autocomplete="off"
+               placeholder="4–6 digit PIN" maxlength="6" />
+        <div class="hint" id="pinHint">Tip: Choose something you can remember.</div>
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn primary" id="unlockBtn">Unlock</button>
+        <button class="btn" id="lockNowBtn" title="Lock immediately">Lock now</button>
+        <button class="btn ok" id="changePinBtn">Set / Change PIN</button>
+      </div>
+    </div>
+  </div>
+</div>
 </script>
 </body>
 </html>
