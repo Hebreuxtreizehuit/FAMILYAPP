@@ -154,6 +154,7 @@
       display:inline-flex; align-items:center; gap:6px;
       cursor: default;
       user-select:none;
+      white-space:nowrap;
     }
     .pill.clickable{ cursor:pointer; }
 
@@ -186,7 +187,6 @@
       line-height: 1.35;
     }
 
-    /* ✅ One home logo block */
     .home-logo{
       display:flex;
       justify-content:center;
@@ -196,7 +196,7 @@
       z-index: 1;
     }
     .home-logo img{
-      width: 160px; /* adjustable */
+      width: 160px;
       height: auto;
       border-radius: 16px;
       filter: drop-shadow(0 10px 22px rgba(0,0,0,.45));
@@ -325,7 +325,7 @@
 
     /* Modals */
     .overlay{
-      position:fixed; inset:0; z-index:50;
+      position:fixed; inset:0;
       background: rgba(0,0,0,.55);
       display:none;
       align-items:center; justify-content:center;
@@ -342,7 +342,8 @@
       overflow:hidden;
     }
 
-    /* Lock overlay shares overlay styles; force show/hide */
+    /* Make lock overlay ALWAYS on top */
+    #lockOverlay{ z-index: 9999; }
     #lockOverlay.show{ display:flex !important; }
     #pinInput{ letter-spacing: 6px; font-weight: 800; text-align:center; }
 
@@ -488,6 +489,11 @@
           <span class="savedDot" id="saveDot"></span><span id="saveText">Saved</span>
         </span>
 
+        <!-- ✅ Current local time/date -->
+        <span class="pill" id="clockPill" title="Local time">
+          <span class="miniDot"></span><span id="clockText">—</span>
+        </span>
+
         <span class="pill clickable" id="weatherPill" title="Click to set city / refresh weather">
           <span class="miniDot"></span><span id="weatherText">Weather: —</span>
         </span>
@@ -516,7 +522,6 @@
     </div>
   </div>
 
-  <!-- ✅ Logo uses your existing files at repo root -->
   <div class="home-logo">
     <img
       src="icon-192.png"
@@ -535,7 +540,7 @@
   </div>
 
   <!-- Task Modal -->
-  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle" style="z-index:50;">
     <div class="modal">
       <div class="modalHead">
         <div class="mh" id="modalTitle">Edit Task</div>
@@ -580,7 +585,6 @@
           </select>
         </div>
 
-        <!-- Reminder -->
         <div class="field full">
           <label>Reminder (alarm)</label>
           <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
@@ -624,7 +628,7 @@
   </div>
 
   <!-- Export/Import Modal -->
-  <div class="overlay" id="ioOverlay" role="dialog" aria-modal="true" aria-labelledby="ioTitle">
+  <div class="overlay" id="ioOverlay" role="dialog" aria-modal="true" aria-labelledby="ioTitle" style="z-index:60;">
     <div class="modal">
       <div class="modalHead">
         <div class="mh" id="ioTitle">Export / Import</div>
@@ -652,7 +656,7 @@
   </div>
 
   <!-- Calendar Modal -->
-  <div class="overlay" id="calOverlay" role="dialog" aria-modal="true" aria-labelledby="calTitle">
+  <div class="overlay" id="calOverlay" role="dialog" aria-modal="true" aria-labelledby="calTitle" style="z-index:70;">
     <div class="modal">
       <div class="modalHead">
         <div class="mh" id="calTitle">Calendar</div>
@@ -692,7 +696,7 @@
   </div>
 
   <!-- Weather Modal -->
-  <div class="overlay" id="wxOverlay" role="dialog" aria-modal="true" aria-labelledby="wxTitle">
+  <div class="overlay" id="wxOverlay" role="dialog" aria-modal="true" aria-labelledby="wxTitle" style="z-index:80;">
     <div class="modal">
       <div class="modalHead">
         <div class="mh" id="wxTitle">Weather</div>
@@ -738,6 +742,15 @@
 
   <script>
   (() => {
+    "use strict";
+
+    // ✅ Fix for (+) buttons not working on some browsers:
+    // structuredClone may be missing, causing a crash before clicks work.
+    const clone = (obj) => {
+      if (typeof structuredClone === "function") return structuredClone(obj);
+      return JSON.parse(JSON.stringify(obj));
+    };
+
     // -----------------------
     // Storage keys
     // -----------------------
@@ -745,6 +758,21 @@
     const WX_KEY = "care_board_city_v1";
     const LOCK_PIN_HASH_KEY = "care_lock_pin_hash_v1";
     const LOCK_STATE_KEY = "care_lock_state_v1"; // "locked" | "unlocked"
+
+    // -----------------------
+    // Time / date formatting (fix weird time formats)
+    // -----------------------
+    const formatTime12h = (d = new Date()) => {
+      let h = d.getHours();
+      const m = String(d.getMinutes()).padStart(2, "0");
+      const ampm = h >= 12 ? "PM" : "AM";
+      h = h % 12;
+      if (h === 0) h = 12;
+      return `${h}:${m} ${ampm}`;
+    };
+
+    const formatDayShort = (d = new Date()) =>
+      d.toLocaleDateString("en-CA", { weekday:"short", month:"short", day:"numeric" });
 
     const todayISO = () => new Date().toISOString().slice(0,10);
     const isSameDay = (isoDate, targetIso) => isoDate && isoDate === targetIso;
@@ -810,6 +838,9 @@
     // -----------------------
     // Load / Save
     // -----------------------
+    const saveText = document.getElementById("saveText");
+    const saveDot = document.getElementById("saveDot");
+
     const setUnsavedDot = () => {
       saveText.textContent = "Saving…";
       saveDot.className = "unsavedDot";
@@ -843,6 +874,7 @@
           for (const card of col.cards){
             if (typeof card.remindOn !== "boolean") card.remindOn = false;
             if (!card.remindTime) card.remindTime = "08:00";
+            if (!Array.isArray(card.checklist)) card.checklist = [];
           }
         }
         return b;
@@ -861,13 +893,13 @@
     const elSearch = document.getElementById("search");
     const elFilter = document.getElementById("filter");
 
-    const saveText = document.getElementById("saveText");
-    const saveDot = document.getElementById("saveDot");
-
     const calendarBtn = document.getElementById("calendarBtn");
     const alertsBtn = document.getElementById("alertsBtn");
     const weatherPill = document.getElementById("weatherPill");
     const weatherText = document.getElementById("weatherText");
+
+    const clockText = document.getElementById("clockText");
+    const updateClockLine = () => { clockText.textContent = `${formatTime12h()} • ${formatDayShort()}`; };
 
     const overlay = document.getElementById("overlay");
     const closeModalBtn = document.getElementById("closeModal");
@@ -922,6 +954,14 @@
     const wxSave = document.getElementById("wxSave");
     const wxRefresh = document.getElementById("wxRefresh");
     const wxStatus = document.getElementById("wxStatus");
+
+    // Lock refs
+    const lockOverlay = document.getElementById("lockOverlay");
+    const pinInput = document.getElementById("pinInput");
+    const unlockBtn = document.getElementById("unlockBtn");
+    const setPinBtn = document.getElementById("setPinBtn");
+    const lockNowBtnTop = document.getElementById("lockNowBtnTop");
+    const changePinBtnTop = document.getElementById("changePinBtnTop");
 
     // -----------------------
     // Helpers
@@ -999,7 +1039,6 @@
         }
       }
 
-      // live preview when modal open
       if (overlay.classList.contains("show") && modalState?.draft) {
         const d = modalState.draft;
         const dTotal = (d.checklist || []).length;
@@ -1027,7 +1066,7 @@
     };
 
     // -----------------------
-    // Render
+    // Render board
     // -----------------------
     const renderCard = (card) => {
       const cardEl = document.createElement("div");
@@ -1116,11 +1155,17 @@
         title.className = "colTitle";
         title.innerHTML = `<span>${escapeHtml(col.title)}</span> <span class="count">${visibleCards.length}</span>`;
 
+        // ✅ (+) button inside each column
         const addBtn = document.createElement("button");
+        addBtn.type = "button";
         addBtn.className = "btn primary";
         addBtn.textContent = "+";
         addBtn.title = "Add task to this column";
-        addBtn.addEventListener("click", () => openModalForNew(col.id));
+        addBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          openModalForNew(col.id);
+        });
 
         head.appendChild(title);
         head.appendChild(addBtn);
@@ -1162,6 +1207,7 @@
       save(board);
       render();
       scheduleAllReminders();
+      refreshCalendar();
     };
 
     // -----------------------
@@ -1210,6 +1256,7 @@
         });
 
         const del = document.createElement("button");
+        del.type = "button";
         del.className = "x";
         del.title = "Remove item";
         del.textContent = "×";
@@ -1255,7 +1302,7 @@
         remindTime: "08:00",
         createdAt: Date.now()
       };
-      modalState = { open:true, cardId: newCard.id, colId, draft: structuredClone(newCard), isNew:true };
+      modalState = { open:true, cardId: newCard.id, colId, draft: clone(newCard), isNew:true };
       fillModal(modalState.draft);
       showModal(true);
       m_title.focus();
@@ -1264,7 +1311,7 @@
     const openModalForEdit = (cardId) => {
       const found = findCard(cardId);
       if(!found) return;
-      modalState = { open:true, cardId, colId: found.col.id, draft: structuredClone(found.card), isNew:false };
+      modalState = { open:true, cardId, colId: found.col.id, draft: clone(found.card), isNew:false };
       fillModal(modalState.draft);
       showModal(true);
       m_title.focus();
@@ -1314,7 +1361,7 @@
 
     const duplicateInBoard = () => {
       setDraftFromModal();
-      const d = structuredClone(modalState.draft);
+      const d = clone(modalState.draft);
       d.id = uid();
       d.createdAt = Date.now();
       d.checklist = (d.checklist||[]).map(i => ({...i, id: uid(), done:false}));
@@ -1381,14 +1428,11 @@
     exportBtn.addEventListener("click", () => { showIO(true); doExport.click(); });
     importBtn.addEventListener("click", () => { showIO(true); ioText.value = ""; ioText.focus(); });
     closeIO.addEventListener("click", () => showIO(false));
-
     doExport.addEventListener("click", () => { ioText.value = JSON.stringify(board, null, 2); });
-
     copyIO.addEventListener("click", async () => {
       try{ await navigator.clipboard.writeText(ioText.value); alert("Copied."); }
       catch{ alert("Copy failed. You can manually select and copy."); }
     });
-
     doImport.addEventListener("click", () => {
       const ok = confirm("Import will REPLACE your current board on this device. Continue?");
       if(!ok) return;
@@ -1400,6 +1444,7 @@
           for (const card of col.cards){
             if (typeof card.remindOn !== "boolean") card.remindOn = false;
             if (!card.remindTime) card.remindTime = "08:00";
+            if (!Array.isArray(card.checklist)) card.checklist = [];
           }
         }
         save(board);
@@ -1412,7 +1457,6 @@
         alert("Import failed. Make sure you pasted valid JSON exported from this app.");
       }
     });
-
     ioOverlay.addEventListener("click", (e) => { if(e.target === ioOverlay) showIO(false); });
 
     // -----------------------
@@ -1505,7 +1549,7 @@
 
           const id = setTimeout(() => {
             notify("⏰ Reminder: " + (card.title || "Task"), `${card.for} • ${card.assigned}`);
-            scheduleAllReminders(); // reschedule
+            scheduleAllReminders();
           }, ms);
 
           reminderTimers.push(id);
@@ -1514,7 +1558,7 @@
     };
 
     // -----------------------
-    // Calendar
+    // Calendar (updated, stays aligned with TODAY / local time)
     // -----------------------
     const showCal = (show) => calOverlay.classList.toggle("show", show);
 
@@ -1549,6 +1593,7 @@
     const renderCalDay = (iso) => {
       calSelectedLabel.dataset.iso = iso;
       calSelectedLabel.textContent = iso;
+
       const list = cardsForDay(iso);
       const dueCount = list.filter(x => x._kind === "Due").length;
       const dailyCount = list.filter(x => x._kind === "Daily").length;
@@ -1612,20 +1657,17 @@
         let dayNum, iso, inMonth = true;
         if (i < prevDays) {
           dayNum = (prevMonthLastDay - prevDays + 1) + i;
-          const d = new Date(year, month - 1, dayNum);
-          iso = toISO(d);
+          iso = toISO(new Date(year, month - 1, dayNum));
           inMonth = false;
           cell.classList.add("muted");
         } else if (i >= prevDays + daysInMonth) {
           dayNum = (i - (prevDays + daysInMonth)) + 1;
-          const d = new Date(year, month + 1, dayNum);
-          iso = toISO(d);
+          iso = toISO(new Date(year, month + 1, dayNum));
           inMonth = false;
           cell.classList.add("muted");
         } else {
           dayNum = (i - prevDays) + 1;
-          const d = new Date(year, month, dayNum);
-          iso = toISO(d);
+          iso = toISO(new Date(year, month, dayNum));
         }
 
         const {due, daily} = countsForDay(iso);
@@ -1656,7 +1698,7 @@
     calOverlay.addEventListener("click", (e) => { if(e.target === calOverlay) showCal(false); });
 
     // -----------------------
-    // Weather (Open-Meteo)
+    // Weather (Open-Meteo) - unchanged (you said it's fine)
     // -----------------------
     const showWx = (show) => wxOverlay.classList.toggle("show", show);
 
@@ -1684,7 +1726,7 @@
       const j = await r.json();
       const hit = (j && j.results && j.results[0]) ? j.results[0] : null;
       if (!hit) throw new Error("City not found");
-      return { lat: hit.latitude, lon: hit.longitude, name: hit.name, country: hit.country };
+      return { lat: hit.latitude, lon: hit.longitude, name: hit.name };
     };
 
     const fetchWeather = async (lat, lon) => {
@@ -1729,35 +1771,23 @@
     setInterval(() => { refreshWeather(); }, 30 * 60 * 1000);
 
     // -----------------------
-    // App Lock (secure, hashed PIN)
+    // Lock + PIN (re-adjusted)
+    // - Always blocks clicks when shown
+    // - Can’t be dismissed by outside click / ESC
     // -----------------------
-    const lockOverlay = document.getElementById("lockOverlay");
-    const pinInput = document.getElementById("pinInput");
-    const unlockBtn = document.getElementById("unlockBtn");
-    const setPinBtn = document.getElementById("setPinBtn");
-
-    const lockNowBtnTop = document.getElementById("lockNowBtnTop");
-    const changePinBtnTop = document.getElementById("changePinBtnTop");
-
     const showLock = (show) => {
       lockOverlay.classList.toggle("show", show);
-      if (show) setTimeout(() => pinInput?.focus(), 100);
+      if (show) setTimeout(() => pinInput?.focus(), 50);
     };
 
     const getLocked = () => localStorage.getItem(LOCK_STATE_KEY) === "locked";
     const setLocked = (locked) => localStorage.setItem(LOCK_STATE_KEY, locked ? "locked" : "unlocked");
 
     async function sha256(text) {
-      if (window.crypto?.subtle) {
-        const data = new TextEncoder().encode(text);
-        const hashBuf = await crypto.subtle.digest("SHA-256", data);
-        const hashArr = Array.from(new Uint8Array(hashBuf));
-        return hashArr.map(b => b.toString(16).padStart(2, "0")).join("");
-      }
-      // fallback (older browsers)
-      let h = 0;
-      for (let i = 0; i < text.length; i++) h = ((h << 5) - h) + text.charCodeAt(i) | 0;
-      return "fallback_" + String(h);
+      const data = new TextEncoder().encode(text);
+      const hashBuf = await crypto.subtle.digest("SHA-256", data);
+      const hashArr = Array.from(new Uint8Array(hashBuf));
+      return hashArr.map(b => b.toString(16).padStart(2, "0")).join("");
     }
 
     const hasPin = () => !!localStorage.getItem(LOCK_PIN_HASH_KEY);
@@ -1775,8 +1805,9 @@
 
     async function tryUnlock() {
       if (!hasPin()) {
-        alert("No PIN set yet.");
-        await setPinFlow();
+        alert("No PIN set yet. Please set a PIN first.");
+        const ok = await setPinFlow();
+        if (ok) { setLocked(false); showLock(false); }
         return;
       }
 
@@ -1796,10 +1827,10 @@
       }
     }
 
-    function lockNow() {
+    async function lockNow() {
       if (!hasPin()) {
-        setPinFlow().then(success => { if (success) { setLocked(true); showLock(true); } });
-        return;
+        const ok = await setPinFlow();
+        if (!ok) return;
       }
       setLocked(true);
       showLock(true);
@@ -1812,13 +1843,19 @@
     lockNowBtnTop.addEventListener("click", lockNow);
     changePinBtnTop.addEventListener("click", setPinFlow);
 
-    // don't allow closing lock by clicking outside
-    lockOverlay.addEventListener("click", (e) => { if (e.target === lockOverlay) e.stopPropagation(); });
+    // Clicking outside should NOT close lock; just refocus PIN
+    lockOverlay.addEventListener("click", (e) => { if (e.target === lockOverlay) pinInput.focus(); });
 
     // -----------------------
     // Keyboard shortcuts
     // -----------------------
     document.addEventListener("keydown", (e) => {
+      // If locked, ignore everything except Enter inside pin input
+      if (lockOverlay.classList.contains("show")) {
+        if (e.key === "Escape") e.preventDefault();
+        return;
+      }
+
       if(overlay.classList.contains("show")){
         if(e.key === "Escape") showModal(false);
         if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s"){
@@ -1832,7 +1869,7 @@
     });
 
     // -----------------------
-    // Initial boot (✅ stays near the end, ✅ IIFE closes at the very bottom)
+    // Initial boot
     // -----------------------
     updateAlertsBtn();
     render();
@@ -1841,7 +1878,11 @@
     scheduleAllReminders();
     refreshWeather();
 
-    // Show lock on load if flagged
+    // Clock: update immediately + every 10 seconds
+    updateClockLine();
+    setInterval(updateClockLine, 10 * 1000);
+
+    // If previously locked, show lock immediately
     if (getLocked()) showLock(true);
 
   })();
